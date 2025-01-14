@@ -1,10 +1,8 @@
 from fastapi import APIRouter, HTTPException, Request
 import requests
-import redis
+from redis_client import add_key_value_redis, get_value_redis, delete_key_redis
 import os
 from dotenv import load_dotenv
-
-redis_client = redis.StrictRedis(host='localhost', port=6379, db=0)
 
 load_dotenv()
 
@@ -19,6 +17,8 @@ async def authorize_hubspot(user_id, org_id):
     try:
         scopes = [
             "oauth",
+            "crm.objects.companies.read",
+            "crm.objects.deals.read",
             "crm.objects.contacts.read",
         ]
         scope_string = " ".join(scopes)
@@ -57,18 +57,26 @@ async def oauth2callback_hubspot(request: Request):
         response.raise_for_status()
         tokens = response.json()
 
-        redis_client.set(f"{user_id}:{org_id}:hubspot_access_token", tokens["access_token"])
-        redis_client.set(f"{user_id}:{org_id}:hubspot_refresh_token", tokens["refresh_token"])
+        redis_access_token_key = f"{user_id}:{org_id}:hubspot_access_token"
+        redis_access_token_value = tokens["access_token"]
+        redis_refresh_token_key = f"{user_id}:{org_id}:hubspot_refresh_token"
+        redis_refresh_token_value = tokens["refresh_token"]
+
+        await add_key_value_redis(redis_access_token_key, redis_access_token_value)
+        await add_key_value_redis(redis_refresh_token_key, redis_refresh_token_value)
+        
         return {"Authorization successful. You can close this tab now."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in OAuth callback: {str(e)}")
 
 async def get_hubspot_credentials(user_id, org_id):
     try:
-        access_token = redis_client.get(f"{user_id}:{org_id}:hubspot_access_token")
+        access_token = await get_value_redis(f"{user_id}:{org_id}:hubspot_access_token")
         if not access_token:
-            refresh_token = redis_client.get(f"{user_id}:{org_id}:hubspot_refresh_token")
+            print("Access token", access_token) 
+            refresh_token = await get_value_redis(f"{user_id}:{org_id}:hubspot_refresh_token")
             if not refresh_token:
+                print("Refresh token", refresh_token)
                 raise HTTPException(status_code=401, detail="Missing credentials.")
 
             data = {
@@ -80,8 +88,15 @@ async def get_hubspot_credentials(user_id, org_id):
             response = requests.post(HUBSPOT_TOKEN_URL, data=data)
             response.raise_for_status()
             tokens = response.json()
-            redis_client.set(f"{user_id}:{org_id}:hubspot_access_token", tokens["access_token"])
-            redis_client.set(f"{user_id}:{org_id}:hubspot_refresh_token", tokens["refresh_token"])
+
+            redis_access_token_key = f"{user_id}:{org_id}:hubspot_access_token"
+            redis_access_token_value = tokens["access_token"]
+            redis_refresh_token_key = f"{user_id}:{org_id}:hubspot_refresh_token"
+            redis_refresh_token_value = tokens["refresh_token"]
+
+            await add_key_value_redis(redis_access_token_key, redis_access_token_value)
+            await add_key_value_redis(redis_refresh_token_key, redis_refresh_token_value)
+            
             access_token = tokens["access_token"]
         return access_token.decode("utf-8")
     except Exception as e:
@@ -100,13 +115,19 @@ async def create_integration_item_metadata_object(response_json):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error in parsing response data: {str(e)}")
 
-async def get_items_hubspot(credentials):
+async def fetch_hubspot_data(credentials, scope):
     try:
-        credentials=credentials.strip()
+        credentials = credentials.strip()
         headers = {"Authorization": f"Bearer {credentials}"}
-        response = requests.get(f"{HUBSPOT_API_BASE_URL}/crm/v3/objects/contacts", headers=headers)
+        url = f"{HUBSPOT_API_BASE_URL}/{scope}"
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
         response_json = response.json()
         return await create_integration_item_metadata_object(response_json)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error in fetching items: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching {scope} data: {str(e)}")
+
+async def get_items_hubspot(credentials, scope):
+    if scope not in ["crm/v3/objects/contacts", "crm/v3/objects/companies", "crm/v3/objects/deals"]:
+        raise HTTPException(status_code=400, detail="Invalid scope provided.")
+    return await fetch_hubspot_data(credentials, scope)

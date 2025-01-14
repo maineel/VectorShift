@@ -8,7 +8,7 @@ from integrations.hubspot import authorize_hubspot, get_hubspot_credentials, get
 app = FastAPI()
 
 origins = [
-    "http://localhost:3001",  # React app address
+    "http://localhost:3001", 
 ]
 
 app.add_middleware(
@@ -62,7 +62,7 @@ async def get_notion_items(credentials: str = Form(...)):
 async def authorize_hubspot_integration(user_id: str = Form(...), org_id: str = Form(...)):
     return await authorize_hubspot(user_id, org_id)
 
-@app.get('/integrations/hubspot/oauth2callback_hubspot')
+@app.get('/integrations/hubspot/oauth2callback')
 async def oauth2callback_hubspot_integration(request: Request):
     return await oauth2callback_hubspot(request)
 
@@ -73,6 +73,7 @@ async def get_hubspot_credentials_integration(user_id: str = Form(...), org_id: 
 @app.post('/integrations/hubspot/get_hubspot_items')
 async def load_hubspot_data_integration(request: Request):
     credentials = request.query_params.get('credentials')
+    scope = request.query_params.get('scope')
     if not credentials:
         raise HTTPException(status_code=400, detail="Missing credentials in query parameters.")
-    return await get_items_hubspot(credentials)
+    return await get_items_hubspot(credentials,scope)
