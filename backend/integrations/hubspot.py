@@ -40,6 +40,7 @@ async def authorize_hubspot(user_id, org_id):
 
 async def oauth2callback_hubspot(request: Request):
     try:
+        print("Request", request)
         code = request.query_params.get("code")
         state = request.query_params.get("state")
         if not code or not state:

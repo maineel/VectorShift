@@ -1,7 +1,6 @@
 import { useState } from "react";
 import {
   Box,
-  TextField,
   Button,
   Card,
   CardContent,
@@ -73,7 +72,7 @@ export const DataForm = ({ integrationType, credentials }) => {
       </Button>
 
       <Box mt={2} width="100%">
-        {selectedScope && loadedData.length === 0 && <Typography variant="h6">No data available for the scope</Typography>}
+        {selectedScope && loadedData.length === 0 && <Typography variant="h6">No data loaded for the chosen scope</Typography>}
         {selectedScope && loadedData.map((item) => (
           <Card key={item.id} sx={{ mb: 2 }}>
             <CardContent>
