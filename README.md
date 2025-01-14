@@ -33,10 +33,10 @@ This project demonstrates a scalable integration system that connects multiple t
 ### Setup Instructions
 
 1. **Clone the repository**
-
-    git clone [VectorShift](https://github.com/maineel/VectorShift.git) \
+```
+git clone https://github.com/maineel/VectorShift.git
 cd VectorShift
-
+```
 2. **Backend Setup**
 ```bash
 cd backend
